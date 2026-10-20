@@ -4,6 +4,9 @@ import { validateEnv } from "./config/env";
 // Validate environment variables first before importing anything else that uses them!
 const env = validateEnv();
 
+import { requireAdminJwt } from './middleware/requireAdminJwt.middleware';
+import operationsRouter from './routes/operations.routes';
+
 import { version } from '../package.json';
 
 import { createCorsMiddleware } from "./config/cors";
@@ -139,31 +142,7 @@ app.get("/api/stats", getPlatformStats);
 app.get("/api/portfolio/:address", getPortfolio);
 app.use("/api/users", usersRouter);
 app.use("/api/admin", adminRouter);
-app.post("/trading/bet", (_req, res) => res.json({ ok: true }));
-app.post("/wallet/withdraw", (_req, res) => res.json({ ok: true }));
-
-// Example route that throws AppError
-app.get("/test-error", (_req, _res, next) => {
-  const error = AppError.notFound("Resource not found", undefined, { resource: "user" });
-  next(error);
-});
-
-// Example route with unhandled error
-app.get("/test-unhandled", (_req, _res) => {
-  throw new Error("Unexpected error occurred");
-});
-
-// Example route with validation error
-app.post("/api/users", (req, res, next) => {
-  if (!req.body.email) {
-    const error = AppError.badRequest("Validation error", undefined, {
-      field: "email",
-      reason: "Email is required",
-    });
-    return next(error);
-  }
-  res.json({ success: true });
-});
+app.use(operationsRouter);
 
 // 404 handler - must be before error middleware
 app.use((_req, _res, next) => {

@@ -23,7 +23,8 @@
     "openapi:postman": "node scripts/generate-postman.js",
     "test": "jest --passWithNoTests",
     "test:integration": "jest --passWithNoTests --testPathPatterns=tests/integration",
-    "test:e2e": "jest --passWithNoTests --runInBand --testPathPatterns=tests/e2e"
+    "test:e2e": "jest --passWithNoTests --runInBand --testPathPatterns=tests/e2e",
+    "openapi:generate": "node scripts/generate-openapi.js"
   },
   "dependencies": {
     "@sentry/node": "10.68.0",
