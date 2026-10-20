@@ -2215,6 +2215,57 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse500' }
 
+  /api/admin/webhooks/{id}/retry:
+    post:
+      summary: Requeue a failed webhook delivery
+      operationId: retryWebhookDelivery
+      tags: [Admin]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, format: int64, minimum: 1 }
+      responses:
+        '202':
+          description: Webhook delivery requeued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  data:
+                    type: object
+                    properties:
+                      id: { type: string }
+                      webhook_id: { type: string }
+                      event_type: { type: string }
+                      status: { type: string, enum: [pending] }
+                      attempt_count: { type: integer }
+                      next_attempt_at: { type: string, format: date-time }
+        '400':
+          description: Invalid delivery ID
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse400' }
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse401' }
+        '403':
+          description: Admin access required
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse403' }
+        '404':
+          description: Failed webhook delivery not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
   /api/admin/dispute/{market_id}:
     post:
       summary: Flag a market as disputed

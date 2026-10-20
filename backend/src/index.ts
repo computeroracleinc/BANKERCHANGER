@@ -28,6 +28,7 @@ import { getPortfolio, getPlatformStats } from "./api/controllers/MarketControll
 import claimsRouter from "./routes/bet.routes";
 import { startAutoResolutionCron, startAutoLockCron } from "./cron/autoResolution.cron";
 import { startCleanupCron } from "./cron/cleanup.cron";
+import { startWebhookDeliveryCron } from "./cron/webhookDelivery.cron";
 import { initActivityFeed, getActivityFeed } from "./websocket/realtime";
 import { engagementService } from "./services/engagement.service";
 import { register, httpRequestDuration, httpRequestsTotal } from "./services/metrics.service";
@@ -184,6 +185,7 @@ const server = app.listen(PORT, () => {
   startAutoResolutionCron();
   startAutoLockCron();
   startCleanupCron();
+  startWebhookDeliveryCron();
 });
 
 // Startup health check — catch misconfigured env vars or failed connections early

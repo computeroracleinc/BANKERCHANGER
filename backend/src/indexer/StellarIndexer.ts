@@ -11,6 +11,7 @@ import { rpc, Address, xdr } from '@stellar/stellar-sdk';
 import { subscribeToContractEvents, fetchHistoricalEvents } from '../services/StellarService';
 import { cacheDeletePattern } from '../services/cache.service';
 import { broadcastMarketResolved } from '../websocket/realtime';
+import { enqueueWebhookEvent } from '../services/webhookDelivery.service';
 
 // Raw event shape returned by Stellar RPC / Horizon
 export interface RawStellarEvent {
@@ -687,6 +688,18 @@ export async function handleMarketResolved(event: RawStellarEvent): Promise<void
           SET status = 'resolved', outcome = $1, resolved_at = $2, oracle_used = $3, updated_at = NOW()
         WHERE market_id = $4`,
       [outcome, resolvedAt, oracleAddress ?? null, marketId],
+    );
+
+    await enqueueWebhookEvent(
+      client,
+      'market.resolved',
+      event.tx_hash || `${marketId}:${resolvedAt}`,
+      {
+        id: event.tx_hash,
+        type: 'market.resolved',
+        created_at: resolvedAt,
+        data: p,
+      },
     );
 
     const { rows: [market] } = await client.query(
