@@ -16,6 +16,7 @@ import { AppError } from "./utils/AppError";
 import { logger } from "./utils/logger";
 import { pool } from "./config/db";
 import { redis } from "./config/redis";
+import { requireAdmin } from "./middleware/requireAdminJwt.middleware";
 import authRouter from "./routes/auth.routes";
 import marketRouter from "./routes/market.routes";
 import governanceRouter from "./routes/governance.routes";
@@ -73,27 +74,25 @@ app.use((req, res, next) => {
 });
 
 // Routes
-// Public health endpoint (Issue #682) — returns only { status, version, timestamp }
+// Public health endpoint — returns no internal service or version details.
 app.get("/health", async (_req, res) => {
   try {
     await pool.query("SELECT 1");
     await redis.ping();
     res.json({
       status: "healthy",
-      version,
       timestamp: new Date().toISOString(),
     });
   } catch {
     res.status(503).json({
       status: "unhealthy",
-      version,
       timestamp: new Date().toISOString(),
     });
   }
 });
 
-// Detailed health endpoint (Issue #682) — restricted to admin JWT
-app.get("/health/detailed", requireAdminJwt, async (_req, res) => {
+// Detailed health endpoint — restricted to admin user JWT.
+app.get("/health/detailed", requireAdmin, async (_req, res) => {
   try {
     await pool.query("SELECT 1");
     await redis.ping();
