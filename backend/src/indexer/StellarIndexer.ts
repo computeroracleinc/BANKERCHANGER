@@ -63,6 +63,17 @@ export function getIndexerHealth(): IndexerHealth {
   return { ...indexerHealth };
 }
 
+export async function getLatestLedgerCloseTime(): Promise<Date> {
+  const latestLedger = await server.getLatestLedger();
+  const closeTime = new Date(latestLedger.closeTime);
+
+  if (Number.isNaN(closeTime.getTime())) {
+    throw new Error('Stellar RPC returned an invalid latest ledger close time');
+  }
+
+  return closeTime;
+}
+
 // ── Exponential backoff for RPC failures ────────────────────────────────────
 const MIN_BACKOFF_MS = 1000;
 const MAX_BACKOFF_MS = 60 * 1000;

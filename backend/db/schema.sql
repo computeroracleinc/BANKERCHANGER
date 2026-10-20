@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS markets (
   title_fight      BOOLEAN     NOT NULL DEFAULT FALSE,
   venue            TEXT        NOT NULL DEFAULT '',
   scheduled_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  lock_before_secs INTEGER     NOT NULL DEFAULT 3600,
   status           TEXT        NOT NULL DEFAULT 'open',
   outcome          TEXT,
   pool_a           NUMERIC     NOT NULL DEFAULT 0,
