@@ -120,8 +120,10 @@ pub enum ContractError {
     SlippageExceeded = 61,
 
     // ── Reserve ────────────────────────────────────────────
-    /// Withdrawal would bring the treasury balance below the configured minimum reserve
-    InsufficientReserve = 62,
+    /// Withdrawal would bring treasury reserves below the configured reserve floor.
+    ReserveFloorBreached = 62,
+    /// Caller does not hold enough tokens to fund the requested seed liquidity.
+    InsufficientSeedLiquidity = 63,
 
     // ── Arithmetic ─────────────────────────────────────────
     /// Multiply-divide result cannot be represented as i128
@@ -136,4 +138,10 @@ impl ContractError {
     pub const PendingAdminExpired: Self = Self::AdminTransferExpired;
     /// Legacy name for `MathOverflow`.
     pub const ArithmeticOverflow: Self = Self::MathOverflow;
+}
+
+impl ContractError {
+    /// Backwards-compatible name retained for callers using the former reserve error.
+    #[allow(non_upper_case_globals)]
+    pub const InsufficientReserve: Self = Self::ReserveFloorBreached;
 }
