@@ -12,7 +12,7 @@ import {
   overrideAffiliateTierGroup18BodySchema,
   getAffiliateStatsGroup18QuerySchema,
 } from '../schemas/affiliateGroup18.schemas';
-import { validateBody, validateQuery } from '../api/middleware/validate';
+import { validateBody, validateQuery } from '../middleware/validation.middleware';
 import { requireAuth } from '../middleware/auth.middleware';
 import { requireAdminJwt } from '../middleware/requireAdminJwt.middleware';
 import { rateLimit } from '../middleware/rate-limit.middleware';

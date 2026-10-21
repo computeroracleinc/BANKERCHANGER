@@ -12,7 +12,7 @@ import {
   listProposalsGroup2QuerySchema,
   getDisputeGroup2ParamsSchema,
 } from '../schemas/governanceGroup2.schemas';
-import { validateBody, validateParams, validateQuery } from '../api/middleware/validate';
+import { validateBody, validateParams, validateQuery } from '../middleware/validation.middleware';
 import { requireAuth } from '../middleware/auth.middleware';
 import { requireAdminJwt } from '../middleware/requireAdminJwt.middleware';
 import { rateLimit } from '../middleware/rate-limit.middleware';

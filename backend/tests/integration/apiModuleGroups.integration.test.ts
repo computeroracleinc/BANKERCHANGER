@@ -74,7 +74,7 @@ describe('Endpoint Group 19: Wallets & Payments', () => {
     const res = await request(app).get('/test?page=0&limit=500');
     expect(res.status).toBe(422);
     expect(res.body).toHaveProperty('errors');
-    expect(Array.isArray(res.body.errors)).toBe(true);
+    expect(res.body.error).toMatchObject({ code: 'VALIDATION_ERROR', details: expect.any(Array) });
   });
 
   it('GET /test/:walletId - returns wallet detail', async () => {
