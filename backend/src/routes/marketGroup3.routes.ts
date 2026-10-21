@@ -11,8 +11,8 @@ import {
   lockMarketGroup3ParamsSchema,
   lockMarketGroup3BodySchema,
 } from '../schemas/marketGroup3.schemas';
-import { validateQuery, validateParams, validateBody } from '../middleware/validation.middleware';
-import { requireAdminJwt } from '../middleware/requireAdminJwt.middleware';
+import { validateQuery, validateParams, validateBody } from '../api/middleware/validate';
+import { requireAdmin } from '../middleware/admin.middleware';
 import { rateLimit } from '../middleware/rate-limit.middleware';
 import { AppError } from '../utils/AppError';
 import { pool } from '../config/db';
@@ -224,7 +224,7 @@ router.get(
 router.post(
   '/',
   createMarketLimiter,
-  requireAdminJwt,
+  requireAdmin,
   validateBody(createMarketGroup3BodySchema),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -291,7 +291,7 @@ router.post(
  */
 router.patch(
   '/:id/lock',
-  requireAdminJwt,
+  requireAdmin,
   validateParams(lockMarketGroup3ParamsSchema),
   validateBody(lockMarketGroup3BodySchema),
   async (req: Request, res: Response, next: NextFunction) => {

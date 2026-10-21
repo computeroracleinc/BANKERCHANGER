@@ -36,10 +36,14 @@ jest.mock('../../src/config/env', () => ({
   }),
 }));
 
+jest.mock('../../src/services/auth.service', () => ({
+  isSessionRevoked: jest.fn().mockResolvedValue(false),
+}));
+
 const { pool } = require('../../src/config/db');
 
 describe('API Module Group 3: Market Discovery & Lifecycle Endpoints', () => {
-  const adminSecret = 'test-admin-secret-key-32-chars-long!';
+  const adminSecret = 'test-secret';
   const validAdminToken = jwt.sign(
     { sub: 'admin-1', role: 'admin', type: 'access' },
     adminSecret,

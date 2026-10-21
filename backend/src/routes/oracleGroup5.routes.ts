@@ -10,8 +10,8 @@ import {
   resolveDisputeGroup5BodySchema,
   listDisputesGroup5QuerySchema,
 } from '../schemas/oracleGroup5.schemas';
-import { validateBody, validateQuery } from '../middleware/validation.middleware';
-import { requireAdminJwt } from '../middleware/requireAdminJwt.middleware';
+import { validateBody, validateQuery } from '../api/middleware/validate';
+import { requireAdmin } from '../middleware/admin.middleware';
 import { rateLimit } from '../middleware/rate-limit.middleware';
 import { AppError } from '../utils/AppError';
 import { pool } from '../config/db';
@@ -254,7 +254,7 @@ router.post(
  */
 router.post(
   '/dispute/resolve',
-  requireAdminJwt,
+  requireAdmin,
   validateBody(resolveDisputeGroup5BodySchema),
   async (req: Request, res: Response, next: NextFunction) => {
     let client: Awaited<ReturnType<typeof pool.connect>> | undefined;

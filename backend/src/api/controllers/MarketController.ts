@@ -374,7 +374,7 @@ const resolveMarketBodySchema = z.object({
 
 /**
  * POST /api/markets/:market_id/resolve
- * Protected by requireAdminJwt middleware.
+ * Protected by requireAdmin middleware.
  *
  * Resolves a market with the given winning_outcome.
  * Returns 409 if market is already resolved.

@@ -44,7 +44,7 @@ const { pool } = require('../../src/config/db');
 
 describe('API Module Group 15: Leaderboards & Tournaments Endpoints', () => {
   const userSecret = 'test-user-secret-key-32-chars-long!';
-  const adminSecret = 'test-admin-secret-key-32-chars-long!';
+  const adminSecret = 'test-user-secret-key-32-chars-long!';
 
   const validUserToken = jwt.sign(
     { sub: 'usr_123', type: 'access', sv: 1 },
