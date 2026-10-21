@@ -604,7 +604,7 @@ impl MarketFactory {
     /// # Errors
     /// - `NotAdmin`: No pending proposal exists, or caller is not the pending admin
     /// - `AdminTimelockActive`: Time-lock has not yet expired
-    /// - `PendingAdminExpired`: The proposal window has elapsed
+    /// - `AdminTransferExpired`: The proposal window has elapsed
     pub fn accept_admin(env: Env, new_admin: Address) -> Result<(), ContractError> {
         new_admin.require_auth();
 
@@ -636,7 +636,7 @@ impl MarketFactory {
             env.storage().persistent().remove(&PENDING_ADMIN);
             env.storage().persistent().remove(&PENDING_ADMIN_UNLOCK);
             env.storage().persistent().remove(&PENDING_ADMIN_EXPIRY);
-            return Err(ContractError::PendingAdminExpired);
+            return Err(ContractError::AdminTransferExpired);
         }
 
         let old_admin: Address = env
@@ -652,6 +652,19 @@ impl MarketFactory {
         env.storage().persistent().remove(&PENDING_ADMIN_EXPIRY);
 
         boxmeout_shared::emit_admin_transferred(&env, old_admin, new_admin);
+        Ok(())
+    }
+
+    /// Cancels a pending admin transfer. Only the current admin may cancel it.
+    pub fn cancel_admin_proposal(env: Env, current_admin: Address) -> Result<(), ContractError> {
+        current_admin.require_auth();
+        Self::require_admin(&env, &current_admin)?;
+        if !env.storage().persistent().has(&PENDING_ADMIN) {
+            return Err(ContractError::NotAdmin);
+        }
+        env.storage().persistent().remove(&PENDING_ADMIN);
+        env.storage().persistent().remove(&PENDING_ADMIN_UNLOCK);
+        env.storage().persistent().remove(&PENDING_ADMIN_EXPIRY);
         Ok(())
     }
 
@@ -1674,6 +1687,29 @@ mod admin_transfer_tests {
             result.is_err(),
             "Second accept must fail after PENDING_ADMIN is cleared"
         );
+    }
+
+    #[test]
+    fn test_expired_admin_transfer_is_rejected() {
+        let (env, client, admin) = setup();
+        let nominee = Address::generate(&env);
+        client.propose_admin(&admin, &nominee);
+        set_time(&env, 604_801);
+        assert_eq!(
+            client.try_accept_admin(&nominee).unwrap_err(),
+            Ok(boxmeout_shared::errors::ContractError::AdminTransferExpired)
+        );
+        assert_eq!(client.get_admin(), admin);
+    }
+
+    #[test]
+    fn test_admin_can_cancel_pending_transfer() {
+        let (env, client, admin) = setup();
+        let nominee = Address::generate(&env);
+        client.propose_admin(&admin, &nominee);
+        client.cancel_admin_proposal(&admin);
+        assert!(client.get_pending_admin().is_none());
+        assert!(client.try_accept_admin(&nominee).is_err());
     }
 }
 

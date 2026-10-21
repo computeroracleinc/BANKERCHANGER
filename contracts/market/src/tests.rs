@@ -3417,6 +3417,26 @@ mod stale_oracle_reports_tests {
         );
     }
 
+    #[test]
+    fn test_submit_pruning_helper_removes_reports_older_than_49_hours() {
+        let now = 800_000u64;
+        let submitted_at = now - (49 * 60 * 60);
+        let env = Env::default();
+        let (_client, contract_id, _factory) = setup(&env, now);
+        let oracle = Address::generate(&env);
+        inject_pending(
+            &env,
+            &contract_id,
+            &[(oracle.clone(), make_report(&env, &oracle, submitted_at))],
+        );
+
+        let removed = env.as_contract(&contract_id, || {
+            Market::prune_stale_reports(&env)
+        });
+        assert_eq!(removed, 1);
+        assert_eq!(read_pending(&env, &contract_id).len(), 0);
+    }
+
     /// A report younger than REPORT_TTL must not be removed.
     #[test]
     fn test_fresh_report_is_retained() {
@@ -9098,7 +9118,7 @@ mod issue_631_to_634_tests {
     fn test_issue_631_payout_calculation_overflow_returns_arithmetic_overflow() {
         let half_max = i128::MAX / 2;
         let res = boxmeout_shared::math::calculate_payout(half_max, 3, 1);
-        assert_eq!(res.unwrap_err(), ContractError::ArithmeticOverflow);
+        assert_eq!(res.unwrap_err(), ContractError::MathOverflow);
     }
 }
 
