@@ -159,7 +159,7 @@ fn test_fee_routing_to_treasury_on_place_bet() {
 
 /// Issue #637 (#11): Missing Event for Market Cancellation
 /// Acceptance Criteria:
-/// - [x] MarketCancelled { market_id, cancelled_by, reason } event added to events.rs
+/// - [x] MarketCancelled { market_id, cancelled_by, reason, cancelled_at } event added to events.rs
 /// - [x] cancel_market function in market contract emits the event
 /// - [x] Event parser in shared/src/event_parser.rs handles the new event type
 /// - [x] Integration test verifies event is emitted and parseable
@@ -208,4 +208,5 @@ fn test_cancel_market_emits_parseable_event() {
     assert_eq!(parsed.market_id, 42u64);
     assert_eq!(parsed.cancelled_by, factory);
     assert_eq!(parsed.reason, cancel_reason);
+    assert_eq!(parsed.cancelled_at, 1_000);
 }

@@ -110,20 +110,22 @@ pub struct MarketCancelled {
     pub market_id: u64,
     pub cancelled_by: Address,
     pub reason: String,
+    pub cancelled_at: u64,
 }
 
 /// Emits a `market_cancelled` event when a market is cancelled.
 ///
 /// Topics: `(Symbol("market_cancelled"), market_id)`
-/// Data:   `(cancelled_by: Address, reason: String)`
+/// Data:   `(cancelled_by: Address, reason: String, cancelled_at: u64)`
 pub fn emit_market_cancelled(
     env: &Env,
     market_id: u64,
     cancelled_by: Address,
     reason: String,
+    cancelled_at: u64,
 ) {
     let topics = (Symbol::new(env, "market_cancelled"), market_id);
-    env.events().publish(topics, (cancelled_by, reason));
+    env.events().publish(topics, (cancelled_by, reason, cancelled_at));
 }
 
 /// Emits a `market_paused` event when a specific market is paused.
@@ -710,8 +712,15 @@ mod tests {
     #[test]
     fn test_emit_market_cancelled() {
         let (env, id) = env();
+        let cancelled_by = addr(&env);
         env.as_contract(&id, || {
-            emit_market_cancelled(&env, 7, str(&env, "fight_postponed"));
+            emit_market_cancelled(
+                &env,
+                7,
+                cancelled_by,
+                str(&env, "fight_postponed"),
+                1234,
+            );
         });
 
         sole_event!(env, &id);

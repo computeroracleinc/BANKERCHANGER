@@ -65,6 +65,8 @@ pub const EXPIRY_GRACE_PERIOD: u64 = 86_400;
 // ─── Storage TTL Constants ────────────────────────────────────────────────────
 /// Maximum TTL for market data (30 days in ledger entries)
 const MAX_TTL: u32 = 2_592_000;
+/// Minimum persistent TTL retained after resolution for bettors to claim.
+pub const CLAIM_WINDOW_LEDGERS: u32 = 2_000_000;
 /// Maximum age for unresolved oracle reports before stale entries are pruned.
 const REPORT_TTL: u64 = 172_800;
 
@@ -76,6 +78,11 @@ pub trait FactoryInterface {
     fn is_paused(env: Env) -> bool;
     /// Returns the registered admin address of the factory.
     fn get_admin(env: Env) -> Address;
+    fn cleanup_terminal_market(
+        env: Env,
+        market_address: Address,
+        market_id: u64,
+    ) -> Result<(), ContractError>;
 }
 
 // ─── Cross-contract client for treasury fee deposits ─────────────────────────
@@ -189,6 +196,18 @@ impl Market {
         env.storage()
             .persistent()
             .extend_ttl(&BETTOR_LIST, MAX_TTL, MAX_TTL);
+    }
+
+    fn extend_claim_ttl(env: &Env, bettor: &Address) {
+        env.storage()
+            .persistent()
+            .extend_ttl(&STATE, CLAIM_WINDOW_LEDGERS, CLAIM_WINDOW_LEDGERS);
+        let key = Self::bet_key(env, bettor);
+        if env.storage().persistent().has(&key) {
+            env.storage()
+                .persistent()
+                .extend_ttl(&key, CLAIM_WINDOW_LEDGERS, CLAIM_WINDOW_LEDGERS);
+        }
     }
 
     /// Extends the TTL of all persistent share and market entries by CLAIM_WINDOW_LEDGERS upon resolution.
@@ -489,6 +508,7 @@ impl Market {
         let is_first_bet = bets.is_empty();
         bets.push_back(bet.clone());
         Self::save_bets(&env, &bettor, &bets);
+        Self::extend_claim_ttl(&env, &bettor);
 
         if is_first_bet {
             let mut bettor_list: Vec<Address> = env
@@ -1154,6 +1174,7 @@ impl Market {
         if state.status != MarketStatus::Resolved {
             return Err(ContractError::MarketNotResolved);
         }
+        Self::extend_claim_ttl(&env, &bettor);
 
         let winning_outcome = match state.outcome.clone() {
             OptionalOutcome::Some(o) => o,
@@ -1440,7 +1461,18 @@ impl Market {
         Self::save_state(&env, &state);
         Self::extend_market_ttl(&env);
 
-        boxmeout_shared::emit_market_cancelled(&env, state.market_id, caller, reason);
+        FactoryClient::new(&env, &factory).cleanup_terminal_market(
+            &env.current_contract_address(),
+            &state.market_id,
+        )?;
+
+        boxmeout_shared::emit_market_cancelled(
+            &env,
+            state.market_id,
+            caller,
+            reason,
+            env.ledger().timestamp(),
+        );
         Ok(())
     }
 
