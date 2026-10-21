@@ -2,7 +2,6 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { validate } from '../api/middleware/validate';
 import { requireAuth } from '../middleware/auth.middleware';
 import { rateLimit } from '../middleware/rate-limit.middleware';
-import { AppError } from '../utils/AppError';
 import {
   listWalletsQuery,
   walletIdParam,
@@ -10,6 +9,8 @@ import {
   depositBody,
   withdrawBody,
 } from '../schemas/apiModuleGroups.schemas';
+
+import { withdraw } from '../api/controllers/WalletsController';
 
 const router = Router();
 
@@ -330,29 +331,8 @@ router.post(
   requireAuth,
   rateLimit({ windowMs: 60_000, max: 5, keyBy: 'userId' }),
   validate(withdrawBody, 'body'),
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const body = req.body as {
-        walletId: string;
-        currency: string;
-        amount: number;
-        destination: string;
-      };
+  withdraw,
 
-      // Placeholder: In production, run KYC/balance checks and enqueue the withdrawal
-      res.status(202).json({
-        withdrawalId: 'wd_' + Date.now(),
-        walletId: body.walletId,
-        amount: body.amount,
-        currency: body.currency,
-        destination: body.destination,
-        status: 'pending_review',
-        createdAt: new Date().toISOString(),
-      });
-    } catch (err) {
-      next(err);
-    }
-  },
 );
 
 export default router;
