@@ -20,8 +20,8 @@ pub enum ContractError {
     NotFactory = 3,
     /// Market contract is not registered or approved
     UnregisteredMarket = 6,
-    /// Pending admin transfer proposal has expired
-    PendingAdminExpired = 7,
+    /// Admin transfer proposal acceptance window has elapsed
+    AdminTransferExpired = 7,
     /// Admin timelock is active; proposal cannot be accepted yet
     AdminTimelockActive = 8,
 
@@ -124,6 +124,16 @@ pub enum ContractError {
     InsufficientReserve = 62,
 
     // ── Arithmetic ─────────────────────────────────────────
-    /// Arithmetic operation resulted in overflow
-    ArithmeticOverflow = 70,
+    /// Multiply-divide result cannot be represented as i128
+    MathOverflow = 70,
+}
+
+// Preserve the legacy source-level names without growing Soroban's exported
+// error specification, which is already at its maximum number of cases.
+#[allow(non_upper_case_globals)]
+impl ContractError {
+    /// Legacy name for `AdminTransferExpired`.
+    pub const PendingAdminExpired: Self = Self::AdminTransferExpired;
+    /// Legacy name for `MathOverflow`.
+    pub const ArithmeticOverflow: Self = Self::MathOverflow;
 }

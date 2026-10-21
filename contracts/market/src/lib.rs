@@ -41,7 +41,6 @@ const CLAIMING: &str = "CLAIMING";
 const PAUSED: &str = "PAUSED";
 /// Pending oracle reports for 2-of-3 consensus
 const PENDING_REPORTS: &str = "PENDING_REPORTS";
-const REPORT_TTL: u64 = 172_800;
 /// Ledger number at which the dispute cooldown window expires for a ResolutionPending market.
 /// Written when consensus is reached and cleared when finalize_resolution completes.
 const COOLDOWN_END_LEDGER: &str = "COOLDOWN_END";
@@ -894,6 +893,9 @@ impl Market {
             return Err(ContractError::NotOracle);
         }
 
+        // Expired reports must not block a fresh oracle round or influence consensus.
+        Self::prune_stale_reports(&env);
+
         // Look up the whitelisted raw public key for this oracle address.
         // This is the authoritative 32-byte Ed25519 key registered by the admin.
         let whitelisted_pub_key: BytesN<32> =
@@ -1071,9 +1073,24 @@ impl Market {
     }
 
     /// Removes stale pending oracle reports older than REPORT_TTL.
-    ///
-    /// Intended for admin cleanup when a previous resolution round stalls and
-    /// newer reports need to be accepted again.
+    fn prune_stale_reports(env: &Env) -> u32 {
+        let pending: Map<Address, OracleReport> = env.storage().persistent()
+            .get(&PENDING_REPORTS).unwrap_or_else(|| Map::new(env));
+        let now = env.ledger().timestamp();
+        let mut retained: Map<Address, OracleReport> = Map::new(env);
+        let mut cleared = 0u32;
+        for (oracle, report) in pending.iter() {
+            if now.saturating_sub(report.submitted_at) >= REPORT_TTL {
+                cleared += 1;
+            } else {
+                retained.set(oracle, report);
+            }
+        }
+        env.storage().persistent().set(&PENDING_REPORTS, &retained);
+        cleared
+    }
+
+    /// Admin cleanup entry point retained for operational visibility.
     pub fn clear_stale_reports(env: Env, admin: Address) -> Result<u32, ContractError> {
         admin.require_auth();
         let factory: Address = env
@@ -1084,25 +1101,7 @@ impl Market {
             return Err(ContractError::NotAdmin);
         }
 
-        let mut pending: Map<Address, OracleReport> = env.storage()
-            .persistent()
-            .get(&PENDING_REPORTS)
-            .unwrap_or_else(|| Map::new(&env));
-
-        let now = env.ledger().timestamp();
-        let mut retained: Map<Address, OracleReport> = Map::new(&env);
-        let mut cleared_count = 0u32;
-
-        for (oracle, report) in pending.iter() {
-            if now.saturating_sub(report.submitted_at) >= REPORT_TTL {
-                cleared_count += 1;
-            } else {
-                retained.set(oracle, report);
-            }
-        }
-
-        env.storage().persistent().set(&PENDING_REPORTS, &retained);
-        Ok(cleared_count)
+        Ok(Self::prune_stale_reports(&env))
     }
 
     // =========================================================================

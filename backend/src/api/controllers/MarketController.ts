@@ -8,7 +8,7 @@ import { z } from 'zod';
 import { StrKey } from '@stellar/stellar-sdk';
 import { AppError } from '../../utils/AppError';
 import { ERROR_CODES } from '../../constants/errorCodes';
-import { validateQuery } from '../middleware/validate';
+import { validateQuery } from '../../middleware/validation.middleware';
 import * as MarketService from '../../services/MarketService';
 import * as OracleService from '../../oracle/OracleService';
 

@@ -65,12 +65,9 @@ jobs:
       - name: Validate OpenAPI spec
         working-directory: backend
         run: |
-          node -e "
-            const S = require('@apidevtools/swagger-parser');
-            S.validate('openapi.yaml')
-              .then(a => console.log('OpenAPI spec valid:', a.info.title, a.info.version))
-              .catch(e => { console.error(e.message); process.exit(1); });
-          "
+          npm run openapi:generate
+          npm run openapi:validate
+          git diff --exit-code -- openapi.yaml
 
       - name: Check migrations for destructive operations
         working-directory: backend
@@ -114,6 +111,7 @@ jobs:
         run: npm test
         env:
           DATABASE_URL: postgresql://bankerchanger:bankerchanger@localhost:5432/bankerchanger
+          BET_LOAD_DATABASE_URL: postgresql://bankerchanger:bankerchanger@localhost:5432/bankerchanger
           REDIS_URL: redis://localhost:6379
 
       - name: Build production Docker image
