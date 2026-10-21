@@ -205,6 +205,13 @@ Perform complete database restoration from backup in case of data corruption or 
    curl -s http://localhost:3001/api/markets?limit=5 | jq '.markets[].title'
    ```
 
+### Health Check Monitoring
+
+- Configure an external uptime check for the public `GET /health` endpoint. It returns only a health status and timestamp; treat non-2xx responses, including `503`, and request timeouts as unhealthy.
+- Keep `/health/detailed` internal to operational tooling and require an admin access token when querying it. Do not make it publicly reachable through a proxy or monitoring dashboard.
+- Alert on sustained health-check failures and investigate application/database/Redis logs before using the authenticated detailed endpoint to diagnose dependencies.
+- Avoid logging or sharing authorization headers or detailed health responses, which include internal dependency and connection-pool information.
+
 ### Backup Encryption & Key Management
 
 #### Initialize Encryption Key
