@@ -95,7 +95,7 @@ describe('API Module Group 15: Leaderboards & Tournaments Endpoints', () => {
       const res = await request(app).get('/api/v2/leaderboards/global?period=invalid_period');
 
       expect(res.status).toBe(422);
-      expect(res.body.errors).toBeDefined();
+      expect(res.body.error).toMatchObject({ code: 'VALIDATION_ERROR', details: expect.any(Array) });
     });
 
     it('rejects invalid limit exceeding 100 with 422', async () => {

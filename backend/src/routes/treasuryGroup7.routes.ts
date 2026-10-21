@@ -1,5 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { validateBody, validateQuery } from '../api/middleware/validate';
+import { validateBody, validateQuery } from '../middleware/validation.middleware';
 import { requireAdminJwt } from '../middleware/requireAdminJwt.middleware';
 import { rateLimit } from '../middleware/rate-limit.middleware';
 import { pool } from '../config/db';

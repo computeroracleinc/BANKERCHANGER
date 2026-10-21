@@ -205,6 +205,15 @@ export const users = pgTable(
   }),
 );
 
+export const user_notification_settings = pgTable('user_notification_settings', {
+  user_id: text('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  email_enabled: boolean('email_enabled').notNull().default(true),
+  push_enabled: boolean('push_enabled').notNull().default(true),
+  settings: jsonb('settings').notNull().default({}),
+  created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const user_sessions = pgTable(
   'user_sessions',
   {

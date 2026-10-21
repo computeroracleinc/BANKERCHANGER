@@ -77,7 +77,7 @@ describe('API Module Group 3: Market Discovery & Lifecycle Endpoints', () => {
         .query({ status: 'invalid_status' });
 
       expect(res.status).toBe(422);
-      expect(res.body.errors).toBeDefined();
+      expect(res.body.error).toMatchObject({ code: 'VALIDATION_ERROR', details: expect.any(Array) });
     });
 
     it('rejects negative minPool with 422', async () => {
@@ -86,7 +86,7 @@ describe('API Module Group 3: Market Discovery & Lifecycle Endpoints', () => {
         .query({ minPool: -100 });
 
       expect(res.status).toBe(422);
-      expect(res.body.errors).toBeDefined();
+      expect(res.body.error).toMatchObject({ code: 'VALIDATION_ERROR', details: expect.any(Array) });
     });
   });
 
@@ -158,7 +158,7 @@ describe('API Module Group 3: Market Discovery & Lifecycle Endpoints', () => {
         .send({ fighter_a: 'Canelo' });
 
       expect(res.status).toBe(422);
-      expect(res.body.errors).toBeDefined();
+      expect(res.body.error).toMatchObject({ code: 'VALIDATION_ERROR', details: expect.any(Array) });
     });
 
     it('rejects fee_bps exceeding 1000 with 422', async () => {

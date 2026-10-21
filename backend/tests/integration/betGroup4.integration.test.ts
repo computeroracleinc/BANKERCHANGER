@@ -197,7 +197,7 @@ describe('API Module Group 4: Betting Operations & Slippage Guard Endpoints', ()
         .send({ ...validBetPayload, bettor_address: 'invalid_address' });
 
       expect(res.status).toBe(422);
-      expect(res.body.errors).toBeDefined();
+      expect(res.body.error).toMatchObject({ code: 'VALIDATION_ERROR', details: expect.any(Array) });
     });
 
     it('rejects bet when market is not found with 404', async () => {

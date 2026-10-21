@@ -11,7 +11,7 @@ import {
   lockMarketGroup3ParamsSchema,
   lockMarketGroup3BodySchema,
 } from '../schemas/marketGroup3.schemas';
-import { validateQuery, validateParams, validateBody } from '../api/middleware/validate';
+import { validateQuery, validateParams, validateBody } from '../middleware/validation.middleware';
 import { requireAdminJwt } from '../middleware/requireAdminJwt.middleware';
 import { rateLimit } from '../middleware/rate-limit.middleware';
 import { AppError } from '../utils/AppError';
