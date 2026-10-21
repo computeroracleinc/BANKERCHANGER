@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import { Router, Request, Response, NextFunction } from 'express';
 import { validateBody, validateQuery, validateParams } from '../api/middleware/validate';
 import { requireAuth } from '../middleware/auth.middleware';
-import { requireAdminJwt } from '../middleware/requireAdminJwt.middleware';
+import { requireAdmin } from '../middleware/admin.middleware';
 import { rateLimit } from '../middleware/rate-limit.middleware';
 import { pool } from '../config/db';
 import {
@@ -383,7 +383,7 @@ router.get(
 router.post(
   '/admin/replay',
   rateLimit({ windowMs: 60_000, max: 10, keyBy: 'ip' }),
-  requireAdminJwt,
+  requireAdmin,
   validateBody(replayWebhookDeliveriesGroup9BodySchema),
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {

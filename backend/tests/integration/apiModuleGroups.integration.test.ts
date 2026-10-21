@@ -14,8 +14,8 @@ jest.mock('../../src/middleware/auth.middleware', () => ({
   },
 }));
 
-jest.mock('../../src/middleware/requireAdminJwt.middleware', () => ({
-  requireAdminJwt: (req: any, _res: any, next: any) => {
+jest.mock('../../src/middleware/admin.middleware', () => ({
+  requireAdmin: (req: any, _res: any, next: any) => {
     req.user = { id: 'admin-user-id', role: 'admin' };
     next();
   },

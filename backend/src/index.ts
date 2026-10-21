@@ -9,6 +9,7 @@ import { version } from '../package.json';
 import { createCorsMiddleware } from "./config/cors";
 import { setupSwagger } from "./config/swagger";
 import { errorMiddleware } from "./middleware/error.middleware";
+import { requireAdmin } from "./middleware/admin.middleware";
 import { initSentry, applySentryRequestHandler } from "./middleware/sentry.middleware";
 import { rateLimit } from "./middleware/rate-limit.middleware";
 import { requestLogging } from "./middleware/request-logging.middleware";
@@ -93,7 +94,7 @@ app.get("/health", async (_req, res) => {
 });
 
 // Detailed health endpoint (Issue #682) — restricted to admin JWT
-app.get("/health/detailed", requireAdminJwt, async (_req, res) => {
+app.get("/health/detailed", requireAdmin, async (_req, res) => {
   try {
     await pool.query("SELECT 1");
     await redis.ping();

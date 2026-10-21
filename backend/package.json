@@ -9,10 +9,10 @@
     "lint": "eslint 'src/**/*.ts' 'tests/**/*.ts'",
     "format": "prettier --write 'src/**/*.ts' 'tests/**/*.ts'",
     "precommit": "node scripts/verify-schema.js",
-    "migrate": "drizzle-kit migrate",
+    "migrate": "node-pg-migrate up",
     "migrate:down": "node-pg-migrate down",
     "migrate:create": "node-pg-migrate create",
-    "migrate:generate": "drizzle-kit generate:pg",
+    "migrate:generate": "node-pg-migrate create",
     "migrate:check": "node scripts/migration-check.js",
     "migrate:dry-run": "node scripts/migration-check.js --dry-run",
     "drizzle:check": "drizzle-kit check:pg",
@@ -23,10 +23,13 @@
     "openapi:postman": "node scripts/generate-postman.js",
     "test": "jest --passWithNoTests",
     "test:integration": "jest --passWithNoTests --testPathPatterns=tests/integration",
-    "test:e2e": "jest --passWithNoTests --runInBand --testPathPatterns=tests/e2e"
+    "test:e2e": "jest --passWithNoTests --runInBand --testPathPatterns=tests/e2e",
+    "migrate:up": "node-pg-migrate up",
+    "migrate:down:all": "node-pg-migrate down --count 10000"
   },
   "dependencies": {
     "@sentry/node": "10.68.0",
+    "@stellar/stellar-sdk": "^15.0.1",
     "@types/bcrypt": "^6.0.0",
     "@types/nodemailer": "^8.0.0",
     "bad-words": "^3.0.4",
@@ -54,7 +57,6 @@
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "^12.1.0",
-    "@stellar/stellar-sdk": "^15.0.1",
     "@types/bad-words": "^3.0.3",
     "@types/cors": "^2.8.19",
     "@types/express": "^4.17.21",

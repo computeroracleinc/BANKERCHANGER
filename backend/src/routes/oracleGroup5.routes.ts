@@ -11,7 +11,7 @@ import {
   listDisputesGroup5QuerySchema,
 } from '../schemas/oracleGroup5.schemas';
 import { validateBody, validateQuery } from '../api/middleware/validate';
-import { requireAdminJwt } from '../middleware/requireAdminJwt.middleware';
+import { requireAdmin } from '../middleware/admin.middleware';
 import { rateLimit } from '../middleware/rate-limit.middleware';
 import { AppError } from '../utils/AppError';
 import { pool } from '../config/db';
@@ -245,7 +245,7 @@ router.post(
  */
 router.post(
   '/dispute/resolve',
-  requireAdminJwt,
+  requireAdmin,
   validateBody(resolveDisputeGroup5BodySchema),
   async (req: Request, res: Response, next: NextFunction) => {
     try {

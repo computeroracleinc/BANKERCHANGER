@@ -10,7 +10,7 @@ import {
 } from '../services/export.service';
 import { sendExportReadyEmail } from '../services/email.service';
 import { flushOracleWhitelistCache } from '../oracle/OracleService';
-import { requireAdmin } from '../middleware/requireAdminJwt.middleware';
+import { requireAdmin } from '../middleware/admin.middleware';
 import { auditLog } from '../services/auditLog.service';
 
 const router = Router();
