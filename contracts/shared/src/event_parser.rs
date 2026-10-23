@@ -203,18 +203,19 @@ pub fn parse_refund_claimed_event(
 /// Parses a raw `market_cancelled` event.
 ///
 /// Topics: `(Symbol("market_cancelled"), market_id: u64)`
-/// Data:   `(cancelled_by: Address, reason: String)`
+/// Data:   `(cancelled_by: Address, reason: String, cancelled_at: u64)`
 pub fn parse_market_cancelled_event(
     env: &Env,
     topics: &Vec<Val>,
     data: &Val,
 ) -> Result<MarketCancelledEvent, ParseError> {
     let market_id: u64 = get_topic(env, topics, 1)?;
-    let (cancelled_by, reason): (Address, String) = decode_data(env, data)?;
+    let (cancelled_by, reason, cancelled_at): (Address, String, u64) = decode_data(env, data)?;
     Ok(MarketCancelledEvent {
         market_id,
         cancelled_by,
         reason,
+        cancelled_at,
     })
 }
 
@@ -410,13 +411,14 @@ mod tests {
         let (env, id) = setup();
         let canceller = addr(&env);
         env.as_contract(&id, || {
-            emit_market_cancelled(&env, 7, canceller.clone(), s(&env, "postponed"));
+            emit_market_cancelled(&env, 7, canceller.clone(), s(&env, "postponed"), 1234);
         });
         let ev = last_event!(env);
         let parsed = parse_market_cancelled_event(&env, &ev.1, &ev.2).unwrap();
         assert_eq!(parsed.market_id, 7);
         assert_eq!(parsed.cancelled_by, canceller);
         assert_eq!(parsed.reason, s(&env, "postponed"));
+        assert_eq!(parsed.cancelled_at, 1234);
     }
 
     #[test]

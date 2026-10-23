@@ -125,10 +125,10 @@ jobs:
 
       - name: Fuzz AMM price functions
         if: steps.check-fuzz.outputs.should_run == 'true'
-        working-directory: contracts/shared
-        run: cargo fuzz run amm_fuzz -- -max_total_time=${{ steps.check-fuzz.outputs.fuzz_time }}
+        working-directory: contracts
+        run: cargo fuzz run --manifest-path shared/fuzz/Cargo.toml amm_fuzz -- -max_total_time=${{ steps.check-fuzz.outputs.fuzz_time }}
 
       - name: Fuzz payout calculations
         if: steps.check-fuzz.outputs.should_run == 'true'
-        working-directory: contracts/shared
-        run: cargo fuzz run payout_fuzz -- -max_total_time=${{ steps.check-fuzz.outputs.fuzz_time }}
+        working-directory: contracts
+        run: cargo fuzz run --manifest-path shared/fuzz/Cargo.toml payout_fuzz -- -max_total_time=${{ steps.check-fuzz.outputs.fuzz_time }}
