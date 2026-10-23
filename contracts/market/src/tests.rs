@@ -8939,6 +8939,7 @@ mod issue_631_to_634_tests {
             resolution_window: 86_400,
             tier: 0,
             dispute_cooldown_ledgers: 0,
+            dispute_cooldown_secs: 0,
         }
     }
 
@@ -9156,6 +9157,7 @@ mod issue_859_858_regression_tests {
             resolution_window: 86_400,
             tier: 0,
             dispute_cooldown_ledgers: 10,
+            dispute_cooldown_secs: 0,
         };
         client.initialize(&factory, &1, &fight, &config, &factory, &0);
         (client, id)

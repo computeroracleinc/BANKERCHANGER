@@ -46,6 +46,7 @@ const APPROVED_MARKETS: &str             = "APPROVED_MARKETS";             // Ve
 const WITHDRAWAL_LIMIT: &str             = "WITHDRAWAL_LIMIT";             // i128 per-tx limit
 const DAILY_WITHDRAWN: &str              = "DAILY_WITHDRAWN";              // Map<u64, i128> (bucket -> amount)
 const DAILY_TOKEN_CAP: &str              = "DAILY_TOKEN_CAP";              // Map<Address, i128>
+const MAX_STALE_BUCKETS_PRUNED_PER_CALL: u32 = 32;
 const WITHDRAWALS_PAUSED: &str           = "WITHDRAWALS_PAUSED";           // bool
 const FEE_LOCK: &str                     = "FEE_LOCK";                     // bool reentrancy guard
 const AUDIT_LOG: &str                    = "AUDIT_LOG";                    // Vec<AuditEntry>
@@ -115,8 +116,13 @@ impl Treasury {
         daily.set(bucket, today + amount);
 
         let mut stale: Vec<u64> = Vec::new(env);
+        let mut scanned = 0u32;
         for (k, _) in daily.iter() {
-            if k + 1 < bucket {
+            if scanned >= MAX_STALE_BUCKETS_PRUNED_PER_CALL {
+                break;
+            }
+            scanned += 1;
+            if k.saturating_add(1) < bucket {
                 stale.push_back(k);
             }
         }
