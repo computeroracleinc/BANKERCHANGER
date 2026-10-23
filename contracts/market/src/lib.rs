@@ -44,9 +44,12 @@ const PENDING_REPORTS: &str = "PENDING_REPORTS";
 /// Ledger number at which the dispute cooldown window expires for a ResolutionPending market.
 /// Written when consensus is reached and cleared when finalize_resolution completes.
 const COOLDOWN_END_LEDGER: &str = "COOLDOWN_END";
+/// Unix timestamp at which the dispute cooldown expires.
+const COOLDOWN_END_TIMESTAMP: &str = "COOLDOWN_END_TIMESTAMP";
 /// Default dispute cooldown in ledgers when market config does not specify one.
-/// 720 ledgers × ~5 s/ledger ≈ 1 hour.
 const DEFAULT_DISPUTE_COOLDOWN_LEDGERS: u32 = 720;
+/// Default dispute cooldown in seconds when market config does not specify one.
+const DEFAULT_DISPUTE_COOLDOWN_SECS: u64 = 3_600;
 /// Total LP shares outstanding for this market pool
 const LP_TOTAL_SHARES: &str = "LP_TOTAL_SHARES";
 /// Prefix for per-provider LP position: (LP_PREFIX, provider) -> LiquidityPosition
@@ -425,32 +428,32 @@ impl Market {
                 BetSide::FighterB => 1,
                 BetSide::Draw => 2,
             };
-            if let Some((shares_out, impact_bps)) = boxmeout_shared::amm::compute_odds(
+            let (shares_out, impact_bps) = boxmeout_shared::amm::compute_odds(
                 state.pool_a,
                 state.pool_b,
                 state.pool_draw,
                 amount,
                 side_byte,
-            ) {
-                // Tier-aware slippage check.
-                if !boxmeout_shared::amm::check_tier_slippage(tier_byte, state.total_pool, impact_bps) {
-                    return Err(ContractError::SlippageExceeded);
-                }
-                if shares_out < min_shares_out {
-                    return Err(ContractError::SlippageExceeded);
-                }
-                // Emit real-time odds update for frontend
-                // Note: state.pool_* values are the CURRENT (pre-bet) pool sizes
-                boxmeout_shared::emit_odds_computed(
-                    &env,
-                    state.market_id,
-                    state.pool_a,
-                    state.pool_b,
-                    state.pool_draw,
-                    shares_out,
-                    impact_bps,
-                );
+            )
+            .ok_or(ContractError::ZeroSharesAllocated)?;
+            // Tier-aware slippage check.
+            if !boxmeout_shared::amm::check_tier_slippage(tier_byte, state.total_pool, impact_bps) {
+                return Err(ContractError::SlippageExceeded);
             }
+            if shares_out < min_shares_out {
+                return Err(ContractError::SlippageExceeded);
+            }
+            // Emit real-time odds update for frontend
+            // Note: state.pool_* values are the CURRENT (pre-bet) pool sizes
+            boxmeout_shared::emit_odds_computed(
+                &env,
+                state.market_id,
+                state.pool_a,
+                state.pool_b,
+                state.pool_draw,
+                shares_out,
+                impact_bps,
+            );
         }
 
         // ── EFFECTS ───────────────────────────────────────────────────────────
@@ -1038,6 +1041,12 @@ impl Market {
             };
 
             let cooldown_end_ledger = env.ledger().sequence().saturating_add(cooldown);
+            let cooldown_secs = if state.config.dispute_cooldown_secs > 0 {
+                state.config.dispute_cooldown_secs
+            } else {
+                DEFAULT_DISPUTE_COOLDOWN_SECS
+            };
+            let cooldown_end_timestamp = env.ledger().timestamp().saturating_add(cooldown_secs);
 
             state.status = MarketStatus::ResolutionPending;
             state.oracle_used = OptionalOracleRole::Some(OracleRole::Primary);
@@ -1049,6 +1058,9 @@ impl Market {
             env.storage()
                 .persistent()
                 .set(&COOLDOWN_END_LEDGER, &cooldown_end_ledger);
+            env.storage()
+                .persistent()
+                .set(&COOLDOWN_END_TIMESTAMP, &cooldown_end_timestamp);
 
             // Clear pending reports — they are no longer needed.
             env.storage().persistent().set(&PENDING_REPORTS, &Map::<Address, OracleReport>::new(&env));
@@ -1441,6 +1453,56 @@ impl Market {
         Self::extend_market_ttl(&env);
 
         boxmeout_shared::emit_market_cancelled(&env, state.market_id, caller, reason);
+        Ok(())
+    }
+
+    // =========================================================================
+    // FINALIZE RESOLUTION
+    // =========================================================================
+    /// Finalizes oracle consensus after both configured cooldown thresholds pass.
+    pub fn finalize_resolution(env: Env, market_id: u64) -> Result<(), ContractError> {
+        Self::require_not_paused(&env)?;
+        let mut state = Self::load_state(&env)?;
+        if market_id != state.market_id {
+            return Err(ContractError::MarketNotFound);
+        }
+        if state.status != MarketStatus::ResolutionPending {
+            return Err(ContractError::ResolutionNotPending);
+        }
+
+        let cooldown_end_ledger: u32 = env
+            .storage()
+            .persistent()
+            .get(&COOLDOWN_END_LEDGER)
+            .unwrap_or(0);
+        let cooldown_end_timestamp: u64 = env
+            .storage()
+            .persistent()
+            .get(&COOLDOWN_END_TIMESTAMP)
+            .unwrap_or(0);
+        let now = env.ledger().timestamp();
+        if env.ledger().sequence() < cooldown_end_ledger || now < cooldown_end_timestamp {
+            return Err(ContractError::DisputeCooldownActive);
+        }
+
+        let outcome = match state.outcome.clone() {
+            OptionalOutcome::Some(outcome) => outcome,
+            OptionalOutcome::None => return Err(ContractError::InvalidOutcome),
+        };
+        let outcome_byte = match outcome {
+            Outcome::FighterA => 0,
+            Outcome::FighterB => 1,
+            Outcome::Draw => 2,
+            Outcome::NoContest => 3,
+        };
+        state.status = MarketStatus::Resolved;
+        state.resolved_at = now;
+        Self::save_state(&env, &state);
+        Self::extend_market_ttl(&env);
+        Self::extend_resolution_ttl(&env);
+        env.storage().persistent().remove(&COOLDOWN_END_LEDGER);
+        env.storage().persistent().remove(&COOLDOWN_END_TIMESTAMP);
+        boxmeout_shared::emit_resolution_finalized(&env, state.market_id, outcome_byte);
         Ok(())
     }
 

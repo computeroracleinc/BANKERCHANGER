@@ -5,7 +5,7 @@
 
 extern crate alloc;
 
-use soroban_sdk::{contract, contractclient, contractimpl, Address, BytesN, Env, Map, Vec};
+use soroban_sdk::{contract, contractclient, contractimpl, Address, BytesN, Env, Map, Symbol, Vec};
 
 use boxmeout_shared::{
     errors::ContractError,
@@ -55,6 +55,7 @@ pub trait MarketInterface {
     fn get_status(env: Env) -> Result<MarketStatus, ContractError>;
     fn get_market_status(env: Env) -> Result<MarketStatus, ContractError>;
     fn refund_expired(env: Env, market_id: u64) -> Result<(), ContractError>;
+    fn finalize_resolution(env: Env, market_id: u64) -> Result<(), ContractError>;
 }
 
 #[contract]
@@ -123,6 +124,7 @@ impl MarketFactory {
             resolution_window: config.default_resolution_window,
             tier: 0,
             dispute_cooldown_ledgers: 720,
+            dispute_cooldown_secs: 3_600,
         };
         env.storage()
             .persistent()
@@ -165,9 +167,22 @@ impl MarketFactory {
     ) -> Result<(), ContractError> {
         admin.require_auth();
         Self::require_admin(&env, &admin)?;
+        let zero_hash = BytesN::from_array(&env, &[0u8; 32]);
+        if new_wasm_hash == zero_hash {
+            return Err(ContractError::InvalidMarketParameters);
+        }
+        let old_wasm_hash: BytesN<32> = env
+            .storage()
+            .persistent()
+            .get(&MARKET_WASM_HASH)
+            .unwrap_or(zero_hash);
         env.storage()
             .persistent()
             .set(&MARKET_WASM_HASH, &new_wasm_hash);
+        env.events().publish(
+            (Symbol::new(&env, "MarketWasmHashUpdated"), admin.clone()),
+            (old_wasm_hash, new_wasm_hash, admin),
+        );
         Ok(())
     }
 
@@ -962,6 +977,7 @@ mod tests {
             resolution_window: 86400,
             tier: 0,
             dispute_cooldown_ledgers: 0,
+            dispute_cooldown_secs: 0,
         }
     }
 
@@ -1193,6 +1209,7 @@ mod scheduled_at_validation_tests {
             resolution_window: 86_400,
             tier: 0,
             dispute_cooldown_ledgers: 0,
+            dispute_cooldown_secs: 0,
         }
     }
 
@@ -1866,6 +1883,7 @@ mod task12_factory_market_integrity_tests {
             resolution_window: 86_400,
             tier: 0,
             dispute_cooldown_ledgers: 0,
+            dispute_cooldown_secs: 0,
         };
 
         // 1. Fight scheduled in the past
@@ -1939,6 +1957,7 @@ mod task12_factory_market_integrity_tests {
             resolution_window: 86_400,
             tier: 0,
             dispute_cooldown_ledgers: 0,
+            dispute_cooldown_secs: 0,
         };
 
         // 1. Same exact name -> DuplicateFighterName

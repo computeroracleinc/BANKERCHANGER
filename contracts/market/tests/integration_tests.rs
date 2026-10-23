@@ -47,6 +47,7 @@ fn sample_config() -> MarketConfig {
         resolution_window: 86400,
         tier: 0,
         dispute_cooldown_ledgers: 0,
+        dispute_cooldown_secs: 0,
     }
 }
 

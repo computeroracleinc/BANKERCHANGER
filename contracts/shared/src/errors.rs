@@ -138,6 +138,8 @@ impl ContractError {
     pub const PendingAdminExpired: Self = Self::AdminTransferExpired;
     /// Legacy name for `MathOverflow`.
     pub const ArithmeticOverflow: Self = Self::MathOverflow;
+    /// AMM could not allocate shares for the requested bet.
+    pub const ZeroSharesAllocated: Self = Self::SlippageExceeded;
 }
 
 impl ContractError {
