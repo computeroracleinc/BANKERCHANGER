@@ -608,7 +608,7 @@ mod tests {
 
     fn env() -> (Env, Address) {
         let env = Env::default();
-        let id = env.register_contract(None, Dummy);
+        let id = env.register(Dummy, ());
         (env, id)
     }
 
@@ -622,10 +622,14 @@ mod tests {
 
     macro_rules! sole_event {
         ($env:expr, $contract:expr) => {{
-            let filtered = $env.events().all().filter_by_contract($contract);
-            let events = filtered.events().to_vec();
-            assert_eq!(events.len(), 1, "expected exactly 1 event");
-            assert!(events[0].contract_id.is_some());
+            // soroban-sdk 22.x: Events::all() returns Vec<(Address, Vec<Val>, Val)>.
+            // Filter by matching the contract address in the first tuple element.
+            let all = $env.events().all();
+            let count = all
+                .iter()
+                .filter(|(addr, _, _)| addr == $contract)
+                .count();
+            assert_eq!(count, 1, "expected exactly 1 event from contract");
         }};
     }
 
