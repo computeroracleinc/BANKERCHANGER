@@ -4,7 +4,7 @@ interface MarketOddsBarProps {
   pool_draw?: string;
   fighter_a: string;
   fighter_b: string;
-  draw_enabled?: boolean;
+  size?: 'sm' | 'md' | 'lg';
 }
 
 function safeBigInt(val?: string): bigint {
@@ -22,33 +22,17 @@ export function MarketOddsBar({
   pool_draw,
   fighter_a,
   fighter_b,
-  draw_enabled = false,
+  size = 'md',
 }: MarketOddsBarProps): JSX.Element {
-  const a = safeBigInt(pool_a);
-  const b = safeBigInt(pool_b);
-  const d = safeBigInt(pool_draw);
+  const a = BigInt(pool_a || '0');
+  const b = BigInt(pool_b || '0');
+  const d = BigInt(pool_draw || '0');
   const total = a + b + d;
 
-  let pA: bigint;
-  let pD: bigint;
-  let pB: bigint;
-
-  if (total === 0n) {
-    // When pool volume is 0, render neutral 50/50 split (or 33/34/33 if draw is configured)
-    if (draw_enabled) {
-      pA = 33n;
-      pD = 34n;
-      pB = 33n;
-    } else {
-      pA = 50n;
-      pD = 0n;
-      pB = 50n;
-    }
-  } else {
-    pA = (a * 100n) / total;
-    pD = (d * 100n) / total;
-    pB = 100n - pA - pD;
-  }
+  const pA = pct(a, total);
+  const pD = pct(d, total);
+  // Assign remainder to B to ensure segments always sum to 100
+  const pB = total === 0n ? 34n : (100n - pA - pD);
 
   const segments = [
     { label: fighter_a, pct: pA, color: 'bg-blue-600' },
@@ -56,8 +40,10 @@ export function MarketOddsBar({
     { label: fighter_b, pct: pB, color: 'bg-red-600' },
   ];
 
+  const heightClass = size === 'sm' ? 'h-6' : size === 'lg' ? 'h-10' : 'h-8';
+
   return (
-    <div className="flex w-full h-8 rounded overflow-hidden" data-testid="market-odds-bar">
+    <div className={`flex w-full ${heightClass} rounded overflow-hidden`} role="img" aria-label="Market odds bar">
       {segments.map(({ label, pct: p, color }) => (
         <div
           key={label}
