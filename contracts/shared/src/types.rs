@@ -145,9 +145,11 @@ pub struct MarketConfig {
     pub tier: u32,
     /// Number of ledgers to wait after oracle consensus before resolution is
     /// finalised. During this window an admin can raise a dispute.
-    /// At ~5 s per ledger, 720 ledgers ≈ 1 hour.
-    /// Set to 0 to disable the cooldown (immediate resolution).
+    /// The cooldown expires only after both this and dispute_cooldown_secs elapse.
     pub dispute_cooldown_ledgers: u32,
+    /// Seconds to wait after oracle consensus before resolution is finalised.
+    /// The cooldown expires only after both this and dispute_cooldown_ledgers elapse.
+    pub dispute_cooldown_secs: u64,
 }
 
 /// Configuration passed to MarketFactory on initialization.

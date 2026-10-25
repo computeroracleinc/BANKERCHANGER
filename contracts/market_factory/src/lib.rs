@@ -5,7 +5,7 @@
 
 extern crate alloc;
 
-use soroban_sdk::{contract, contractclient, contractimpl, Address, BytesN, Env, Map, Vec};
+use soroban_sdk::{contract, contractclient, contractimpl, Address, BytesN, Env, Map, Symbol, Vec};
 
 use boxmeout_shared::{
     errors::ContractError,
@@ -55,6 +55,7 @@ pub trait MarketInterface {
     fn get_status(env: Env) -> Result<MarketStatus, ContractError>;
     fn get_market_status(env: Env) -> Result<MarketStatus, ContractError>;
     fn refund_expired(env: Env, market_id: u64) -> Result<(), ContractError>;
+    fn finalize_resolution(env: Env, market_id: u64) -> Result<(), ContractError>;
 }
 
 #[contract]
@@ -123,6 +124,7 @@ impl MarketFactory {
             resolution_window: config.default_resolution_window,
             tier: 0,
             dispute_cooldown_ledgers: 720,
+            dispute_cooldown_secs: 3_600,
         };
         env.storage()
             .persistent()
@@ -165,9 +167,22 @@ impl MarketFactory {
     ) -> Result<(), ContractError> {
         admin.require_auth();
         Self::require_admin(&env, &admin)?;
+        let zero_hash = BytesN::from_array(&env, &[0u8; 32]);
+        if new_wasm_hash == zero_hash {
+            return Err(ContractError::InvalidMarketParameters);
+        }
+        let old_wasm_hash: BytesN<32> = env
+            .storage()
+            .persistent()
+            .get(&MARKET_WASM_HASH)
+            .unwrap_or(zero_hash);
         env.storage()
             .persistent()
             .set(&MARKET_WASM_HASH, &new_wasm_hash);
+        env.events().publish(
+            (Symbol::new(&env, "MarketWasmHashUpdated"), admin.clone()),
+            (old_wasm_hash, new_wasm_hash, admin),
+        );
         Ok(())
     }
 
@@ -538,7 +553,10 @@ impl MarketFactory {
     ) -> Result<(), ContractError> {
         admin.require_auth();
         Self::require_admin(&env, &admin)?;
+        let old_timelock: u64 = env.storage().persistent().get(&ADMIN_TIMELOCK)
+            .unwrap_or(DEFAULT_ADMIN_TIMELOCK_SECS);
         env.storage().persistent().set(&ADMIN_TIMELOCK, &timelock_secs);
+        boxmeout_shared::emit_admin_timelock_updated(&env, old_timelock, timelock_secs);
         Ok(())
     }
 
@@ -592,7 +610,8 @@ impl MarketFactory {
         env.storage()
             .persistent()
             .set(&PENDING_ADMIN_EXPIRY, &expiry);
-        boxmeout_shared::emit_admin_proposed(&env, current_admin, new_admin);
+        boxmeout_shared::emit_admin_proposed(&env, current_admin.clone(), new_admin.clone());
+        boxmeout_shared::emit_admin_transfer_proposed(&env, current_admin, new_admin, unlock_at);
         Ok(())
     }
 
@@ -604,7 +623,7 @@ impl MarketFactory {
     /// # Errors
     /// - `NotAdmin`: No pending proposal exists, or caller is not the pending admin
     /// - `AdminTimelockActive`: Time-lock has not yet expired
-    /// - `PendingAdminExpired`: The proposal window has elapsed
+    /// - `AdminTransferExpired`: The proposal window has elapsed
     pub fn accept_admin(env: Env, new_admin: Address) -> Result<(), ContractError> {
         new_admin.require_auth();
 
@@ -636,7 +655,7 @@ impl MarketFactory {
             env.storage().persistent().remove(&PENDING_ADMIN);
             env.storage().persistent().remove(&PENDING_ADMIN_UNLOCK);
             env.storage().persistent().remove(&PENDING_ADMIN_EXPIRY);
-            return Err(ContractError::PendingAdminExpired);
+            return Err(ContractError::AdminTransferExpired);
         }
 
         let old_admin: Address = env
@@ -651,7 +670,21 @@ impl MarketFactory {
         env.storage().persistent().remove(&PENDING_ADMIN_UNLOCK);
         env.storage().persistent().remove(&PENDING_ADMIN_EXPIRY);
 
-        boxmeout_shared::emit_admin_transferred(&env, old_admin, new_admin);
+        boxmeout_shared::emit_admin_transferred(&env, old_admin.clone(), new_admin.clone());
+        boxmeout_shared::emit_admin_transfer_accepted(&env, old_admin, new_admin);
+        Ok(())
+    }
+
+    /// Cancels a pending admin transfer. Only the current admin may cancel it.
+    pub fn cancel_admin_proposal(env: Env, current_admin: Address) -> Result<(), ContractError> {
+        current_admin.require_auth();
+        Self::require_admin(&env, &current_admin)?;
+        if !env.storage().persistent().has(&PENDING_ADMIN) {
+            return Err(ContractError::NotAdmin);
+        }
+        env.storage().persistent().remove(&PENDING_ADMIN);
+        env.storage().persistent().remove(&PENDING_ADMIN_UNLOCK);
+        env.storage().persistent().remove(&PENDING_ADMIN_EXPIRY);
         Ok(())
     }
 
@@ -944,6 +977,7 @@ mod tests {
             resolution_window: 86400,
             tier: 0,
             dispute_cooldown_ledgers: 0,
+            dispute_cooldown_secs: 0,
         }
     }
 
@@ -1175,6 +1209,7 @@ mod scheduled_at_validation_tests {
             resolution_window: 86_400,
             tier: 0,
             dispute_cooldown_ledgers: 0,
+            dispute_cooldown_secs: 0,
         }
     }
 
@@ -1469,20 +1504,14 @@ mod admin_transfer_tests {
         let admin = Address::generate(&env);
         let treasury = Address::generate(&env);
         let oracle = Address::generate(&env);
-        let oracle_raw_key: BytesN<32> = BytesN::from_array(&env, &[1u8; 32]);
-        client.initialize(
-            &admin,
-            &treasury,
-            &oracle,
-            &oracle_raw_key,
-            &FactoryConfig {
-                default_min_bet: 1_000_000,
-                default_max_bet: 100_000_000_000,
-                default_fee_bps: 200,
-                default_lock_before_secs: 3_600,
-                default_resolution_window: 86_400,
-            },
-        );
+        let oracle_raw_key = soroban_sdk::BytesN::from_array(&env, &[0u8; 32]);
+        client.initialize(&admin, &treasury, &oracle, &oracle_raw_key, &FactoryConfig {
+            default_min_bet: 1_000_000,
+            default_max_bet: 100_000_000_000,
+            default_fee_bps: 200,
+            default_lock_before_secs: 3_600,
+            default_resolution_window: 86_400,
+        });
         (env, client, admin)
     }
 
@@ -1681,6 +1710,29 @@ mod admin_transfer_tests {
             "Second accept must fail after PENDING_ADMIN is cleared"
         );
     }
+
+    #[test]
+    fn test_expired_admin_transfer_is_rejected() {
+        let (env, client, admin) = setup();
+        let nominee = Address::generate(&env);
+        client.propose_admin(&admin, &nominee);
+        set_time(&env, 604_801);
+        assert_eq!(
+            client.try_accept_admin(&nominee).unwrap_err(),
+            Ok(boxmeout_shared::errors::ContractError::AdminTransferExpired)
+        );
+        assert_eq!(client.get_admin(), admin);
+    }
+
+    #[test]
+    fn test_admin_can_cancel_pending_transfer() {
+        let (env, client, admin) = setup();
+        let nominee = Address::generate(&env);
+        client.propose_admin(&admin, &nominee);
+        client.cancel_admin_proposal(&admin);
+        assert!(client.get_pending_admin().is_none());
+        assert!(client.try_accept_admin(&nominee).is_err());
+    }
 }
 
 // =====================================================
@@ -1831,6 +1883,7 @@ mod task12_factory_market_integrity_tests {
             resolution_window: 86_400,
             tier: 0,
             dispute_cooldown_ledgers: 0,
+            dispute_cooldown_secs: 0,
         };
 
         // 1. Fight scheduled in the past
@@ -1904,6 +1957,7 @@ mod task12_factory_market_integrity_tests {
             resolution_window: 86_400,
             tier: 0,
             dispute_cooldown_ledgers: 0,
+            dispute_cooldown_secs: 0,
         };
 
         // 1. Same exact name -> DuplicateFighterName
@@ -1956,5 +2010,44 @@ mod task12_factory_market_integrity_tests {
         // Refund expired on nonexistent market returns MarketNotFound
         let err_refund = client.try_refund_expired(&999u64);
         assert_eq!(err_refund.unwrap_err(), Ok(ContractError::MarketNotFound));
+    }
+
+    #[test]
+    fn governance_events_include_timelock_and_transfer_payloads() {
+        use soroban_sdk::{testutils::{Events, LedgerInfo}, Symbol, TryFromVal};
+        let env = Env::default();
+        let (client, admin, _treasury, _oracle) = setup_factory(&env);
+        let old_timelock = client.get_admin_timelock();
+        client.set_admin_timelock(&admin, &3_600);
+        let event = env.events().all().last().unwrap();
+        let topic: Symbol = TryFromVal::try_from_val(&env, &event.1.get(0).unwrap()).unwrap();
+        assert_eq!(topic, Symbol::new(&env, "admin_timelock_updated"));
+        let payload: (u64, u64) = TryFromVal::try_from_val(&env, &event.2).unwrap();
+        assert_eq!(payload, (old_timelock, 3_600));
+
+        let nominee = Address::generate(&env);
+        client.propose_admin(&admin, &nominee);
+        let event = env.events().all().last().unwrap();
+        let topic: Symbol = TryFromVal::try_from_val(&env, &event.1.get(0).unwrap()).unwrap();
+        assert_eq!(topic, Symbol::new(&env, "admin_transfer_proposed"));
+        let payload: (Address, Address, u64) = TryFromVal::try_from_val(&env, &event.2).unwrap();
+        assert_eq!(payload, (admin.clone(), nominee.clone(), 53_600));
+
+        env.ledger().set(LedgerInfo {
+            timestamp: 53_600,
+            protocol_version: 22,
+            sequence_number: 100,
+            network_id: Default::default(),
+            base_reserve: 1,
+            min_temp_entry_ttl: 16,
+            min_persistent_entry_ttl: 4096,
+            max_entry_ttl: 6_311_520,
+        });
+        client.accept_admin(&nominee);
+        let event = env.events().all().last().unwrap();
+        let topic: Symbol = TryFromVal::try_from_val(&env, &event.1.get(0).unwrap()).unwrap();
+        assert_eq!(topic, Symbol::new(&env, "admin_transfer_accepted"));
+        let payload: (Address, Address) = TryFromVal::try_from_val(&env, &event.2).unwrap();
+        assert_eq!(payload, (admin, nominee));
     }
 }

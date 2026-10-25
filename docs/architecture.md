@@ -166,13 +166,17 @@ Oracles are whitelisted Stellar accounts that submit match outcome reports to th
 
 4. **On-Chain Resolution**: Once consensus is achieved, the backend invokes the `resolve()` method on the market's Soroban contract. The contract:
    - Validates the resolver is the factory contract (authorized caller)
-   - Sets the market outcome to the consensus value
-   - Unlocks the claim function for winning bettors
-   - Emits a `MarketResolved` event
+    - Stores the consensus outcome and enters `ResolutionPending`
+    - Keeps claims locked while the dispute cooldown is active
+    - Emits a `market_resolution_pending` event
 
-5. **Late Reports**: If a third oracle submits a report after resolution, the report is still stored for audit purposes but does not trigger any further action.
+5. **Cooldown Finalization**: Anyone may call `finalize_resolution` after both the configured ledger count and seconds have elapsed. The market becomes `Resolved` and claims unlock only after both thresholds pass. This dual check accounts for variable ledger close times.
 
-6. **No Consensus**: If oracles submit conflicting reports (e.g., 1 for `fighter_a`, 1 for `fighter_b`, 1 for `draw`), the market remains in `locked` status. An automated retry mechanism (`autoResolution.cron.ts`) will re-attempt resolution periodically, giving oracles time to converge.
+6. **Late Reports**: If a third oracle submits a report after resolution, the report is still stored for audit purposes but does not trigger any further action.
+
+7. **No Consensus**: If oracles submit conflicting reports (e.g., 1 for `fighter_a`, 1 for `fighter_b`, 1 for `draw`), the market remains in `locked` status. An automated retry mechanism (`autoResolution.cron.ts`) will re-attempt resolution periodically, giving oracles time to converge.
+
+`MarketConfig.dispute_cooldown_ledgers` and `MarketConfig.dispute_cooldown_secs` are independent minimums. Finalization requires the ledger sequence and timestamp to reach their respective deadlines. Zero values use defaults of 720 ledgers and 3,600 seconds.
 
 #### Consensus Flow Diagram
 

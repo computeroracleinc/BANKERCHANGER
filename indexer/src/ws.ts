@@ -132,110 +132,32 @@ export class ResilientWsClient {
 
 // ── WebSocket Server for Downstream Consumers ────────────────────────────────
 
-export const MAX_SUBSCRIPTIONS_PER_CLIENT = 50;
-export const MAX_MESSAGES_PER_SECOND_PER_IP = 20;
-export const MARKET_ID_REGEX = /^(\d+|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$/;
-
-const ipMessageTimestamps = new Map<string, number[]>();
-
-export function checkIpRateLimit(ip: string, now: number = Date.now()): boolean {
-  let timestamps = ipMessageTimestamps.get(ip);
-  if (!timestamps) {
-    timestamps = [];
-    ipMessageTimestamps.set(ip, timestamps);
-  }
-  const cutoff = now - 1000;
-  timestamps = timestamps.filter((t) => t > cutoff);
-  if (timestamps.length >= MAX_MESSAGES_PER_SECOND_PER_IP) {
-    ipMessageTimestamps.set(ip, timestamps);
-    return false;
-  }
-  timestamps.push(now);
-  ipMessageTimestamps.set(ip, timestamps);
-  return true;
-}
-
-export function resetIpRateLimits(): void {
-  ipMessageTimestamps.clear();
-}
-
-export function handleClientMessage(
-  socket: { send: (data: string) => void },
-  raw: string | object,
-  clientSubscriptions: Set<string>,
-  ip: string = '127.0.0.1'
-): boolean {
-  if (!checkIpRateLimit(ip)) {
-    socket.send(
-      JSON.stringify({
-        type: 'error',
-        error: 'Rate limit exceeded: max 20 messages per second',
-      })
-    );
-    return false;
-  }
-
-  const msg = typeof raw === 'string' ? JSON.parse(raw) : raw;
-  if (msg.type === 'subscribe' || msg.type === 'subscribe_market') {
-    const marketId = msg.market_id || msg.marketId || msg.room;
-    if (marketId) {
-      if (!MARKET_ID_REGEX.test(String(marketId))) {
-        socket.send(
-          JSON.stringify({
-            type: 'error',
-            error: 'Invalid market_id format: must be numeric or UUID',
-          })
-        );
-        return false;
-      }
-      if (
-        clientSubscriptions.size >= MAX_SUBSCRIPTIONS_PER_CLIENT &&
-        !clientSubscriptions.has(String(marketId))
-      ) {
-        socket.send(
-          JSON.stringify({
-            type: 'error',
-            error: `Subscription limit reached: maximum ${MAX_SUBSCRIPTIONS_PER_CLIENT} active subscriptions permitted`,
-          })
-        );
-        return false;
-      }
-      clientSubscriptions.add(String(marketId));
-      socket.send(
-        JSON.stringify({
-          type: 'subscribed',
-          market_id: marketId,
-          active_subscriptions: clientSubscriptions.size,
-        })
-      );
-      return true;
-    }
-  } else if (msg.type === 'unsubscribe' || msg.type === 'unsubscribe_market') {
-    const marketId = msg.market_id || msg.marketId || msg.room;
-    if (marketId) {
-      clientSubscriptions.delete(String(marketId));
-      socket.send(
-        JSON.stringify({
-          type: 'unsubscribed',
-          market_id: marketId,
-          active_subscriptions: clientSubscriptions.size,
-        })
-      );
-      return true;
-    }
-  }
-  return true;
-}
+const MAX_BUFFER_SIZE = 1024 * 1024; // 1MB
+const SLOW_CLIENT_THRESHOLD = 256 * 1024; // 256KB
+let heartbeatInterval: NodeJS.Timeout | null = null;
 
 export function initWebSocketServer(httpServer: HttpServer): WebSocketServer {
   wss = new WebSocketServer({ server: httpServer, path: '/ws' });
 
-  wss.on('connection', (socket: WebSocket, req: any) => {
-    const ip =
-      (req?.headers?.['x-forwarded-for'] as string)?.split(',')[0].trim() ||
-      req?.socket?.remoteAddress ||
-      '127.0.0.1';
-    const clientSubscriptions = new Set<string>();
+  // 30s ping/pong heartbeat to prune dead connections
+  if (heartbeatInterval) clearInterval(heartbeatInterval);
+  heartbeatInterval = setInterval(() => {
+    if (!wss) return;
+    for (const client of wss.clients) {
+      if ((client as any).isAlive === false) {
+        client.terminate();
+        continue;
+      }
+      (client as any).isAlive = false;
+      client.ping();
+    }
+  }, 30000);
+
+  wss.on('connection', (socket: WebSocket) => {
+    (socket as any).isAlive = true;
+    socket.on('pong', () => {
+      (socket as any).isAlive = true;
+    });
 
     socket.send(
       JSON.stringify({
@@ -257,15 +179,28 @@ export function initWebSocketServer(httpServer: HttpServer): WebSocketServer {
   return wss;
 }
 
-/** Send a message to every currently connected WebSocket client. */
+/** Send a message to every currently connected WebSocket client with backpressure handling. */
 export function broadcast(message: StreamMessage): void {
   if (!wss) return;
 
   const payload = JSON.stringify(message);
   for (const client of wss.clients) {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(payload);
+    if (client.readyState !== WebSocket.OPEN) continue;
+
+    // Terminate unresponsive sockets exceeding MAX_BUFFER_SIZE (1MB)
+    if (client.bufferedAmount > MAX_BUFFER_SIZE) {
+      logger.warn({ bufferedAmount: client.bufferedAmount }, 'Terminating slow client exceeding MAX_BUFFER_SIZE');
+      client.terminate();
+      continue;
     }
+
+    // Drop non-critical updates if client buffer is filling up
+    if (client.bufferedAmount > SLOW_CLIENT_THRESHOLD && message.type === 'market_update') {
+      logger.debug({ bufferedAmount: client.bufferedAmount }, 'Dropping non-critical message for slow client');
+      continue;
+    }
+
+    client.send(payload);
   }
 }
 
@@ -275,6 +210,10 @@ export function getConnectedClientCount(): number {
 
 /** Test/shutdown helper to reset module state between runs. */
 export function closeWebSocketServer(): void {
+  if (heartbeatInterval) {
+    clearInterval(heartbeatInterval);
+    heartbeatInterval = null;
+  }
   if (wss) {
     for (const client of wss.clients) {
       client.terminate();
@@ -283,3 +222,4 @@ export function closeWebSocketServer(): void {
     wss = null;
   }
 }
+
