@@ -166,6 +166,14 @@ export function initWebSocketServer(httpServer: HttpServer): WebSocketServer {
         data: { message: 'subscribed to indexer event stream' },
       } satisfies StreamMessage)
     );
+
+    socket.on('message', (raw: any) => {
+      try {
+        handleClientMessage(socket, raw.toString(), clientSubscriptions, ip);
+      } catch {
+        // Ignore unparseable frames
+      }
+    });
   });
 
   return wss;

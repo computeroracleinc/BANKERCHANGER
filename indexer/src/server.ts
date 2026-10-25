@@ -2,6 +2,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import { getPollerHealth } from './poller';
 import { isLive, isReady, getReadinessDetails, getHealthResponse } from './health';
+import { getMetricsPrometheusFormat } from './metrics';
 
 const app = express();
 
